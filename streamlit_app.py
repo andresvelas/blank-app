@@ -6,7 +6,8 @@ st.title("Juego Monty Hall Interactivo y Probabilístico (10 puertas)")
 st.write("""
 Bienvenida/o al juego de Monty Hall con **10 puertas**.  
 Detrás de **9 puertas hay una cabra** y detrás de **1 el premio**.  
-Vamos a explorar **probabilidades paso a paso** con apoyo visual y ecuaciones.
+Vamos a explorar **probabilidades paso a paso**, incluyendo probabilidades
+condicionadas antes y después de que Monty abra puertas.
 """)
 
 # ---------- Estado ----------
@@ -25,20 +26,15 @@ def dibujar_puertas(n=10, abiertas=None, eleccion=None, otra_puerta=None, revela
     for i in range(n):
         puerta_num = i + 1
         texto = f"🚪 {puerta_num}"
-        color = "white"
 
-        # Puerta abierta/cerrada
+        # Puerta abierta
         if i in abiertas:
-            # Si se revela el contenido
             if revelar and puertas_real is not None:
-                if puertas_real[i] == 1:
-                    texto = f"🚪 {puerta_num}\n🎁"
-                else:
-                    texto = f"🚪 {puerta_num}\n🐐"
+                texto += "\n🎁" if puertas_real[i] == 1 else "\n🐐"
             else:
-                texto = f"🚪 {puerta_num}\n(abierta)"
+                texto += "\n(abierta)"
 
-        # Resaltar elección y otra puerta
+        # Marcar elección y puerta alternativa
         if eleccion is not None and i == eleccion:
             texto = "⭐ " + texto
         if otra_puerta is not None and i == otra_puerta:
@@ -52,9 +48,7 @@ def dibujar_puertas(n=10, abiertas=None, eleccion=None, otra_puerta=None, revela
                     border-radius: 6px;
                     padding: 6px;
                     text-align: center;
-                    background-color: {color};
                     white-space: pre-line;
-                    font-size: 14px;
                 ">
                 {texto}
                 </div>
@@ -62,142 +56,151 @@ def dibujar_puertas(n=10, abiertas=None, eleccion=None, otra_puerta=None, revela
                 unsafe_allow_html=True
             )
 
-# ---------- Paso 1: Elegir puerta ----------
+# ---------- Inicio: elegir puerta ----------
 if st.session_state.estado == 'inicio':
-    st.write("Primero elige una puerta. Todas están cerradas:")
-    dibujar_puertas(n=10)
-    puerta = st.number_input("Elige una puerta del 1 al 10:", min_value=1, max_value=10, step=1)
+    st.write("Todas las puertas están cerradas. Elige una:")
+    dibujar_puertas(10)
+    puerta = st.number_input("Puerta elegida (1–10):", 1, 10, 1)
     if st.button("Confirmar elección"):
         st.session_state.eleccion = puerta - 1
-        # Crear puertas: 1 premio, 9 cabras
         st.session_state.puertas = [0]*9 + [1]
         random.shuffle(st.session_state.puertas)
         st.session_state.estado = 'pregunta_prob1'
 
-# ---------- Paso 2: Probabilidad puerta elegida ----------
+# ---------- Probabilidad de tu puerta ----------
 if st.session_state.estado == 'pregunta_prob1':
-    st.write(f"Elegiste la puerta {st.session_state.eleccion+1}. Así se ve tu elección resaltada:")
-    dibujar_puertas(n=10, eleccion=st.session_state.eleccion)
-    prob_elegida = st.number_input(
-        "¿Cuál crees que es la probabilidad de que el premio esté en tu puerta elegida?",
-        min_value=0.0, max_value=1.0, step=0.01, key='prob1'
-    )
-    if st.button("Siguiente paso"):
-        st.session_state.estado = 'pregunta_prob2'
+    st.write(f"Elegiste la puerta {st.session_state.eleccion+1}.")
+    dibujar_puertas(10, eleccion=st.session_state.eleccion)
 
-# ---------- Paso 3: Probabilidad puertas restantes ----------
-if st.session_state.estado == 'pregunta_prob2':
-    st.write("Tu puerta está marcada con ⭐. Las otras 9 están cerradas:")
-    dibujar_puertas(n=10, eleccion=st.session_state.eleccion)
-    prob_restantes = st.number_input(
-        "¿Cuál crees que es la probabilidad de que el premio esté en las **otras 9 puertas**?",
-        min_value=0.0, max_value=1.0, step=0.01, key='prob2'
+    st.number_input(
+        "¿Probabilidad de que el premio esté en tu puerta (antes de abrir)?",
+        min_value=0.0, max_value=1.0, step=0.01, key="prob1"
     )
-    if st.button("Abrir 8 puertas sin premio"):
-        # Monty abre 8 puertas con cabras que no son tu elección
+
+    if st.button("Siguiente"):
+        st.session_state.estado = 'prob_puertas_9'
+
+# ---------- Probabilidad de CADA una de las 9 puertas restantes ----------
+if st.session_state.estado == 'prob_puertas_9':
+    st.write("""
+    Ahora piensa en las **9 puertas que NO elegiste**.
+
+    Condiciona a que *sabes* que el premio está dentro de esas 9 puertas.
+    ¿Cuál es la probabilidad de cada una de esas puertas?
+    """)
+
+    st.write("Visualización (⭐ = tu puerta):")
+    dibujar_puertas(10, eleccion=st.session_state.eleccion)
+
+    st.number_input(
+        "¿Probabilidad de cada una de las 9 puertas (si sabes que el premio está en esas 9)?",
+        min_value=0.0, max_value=1.0, step=0.01, key="prob_9"
+    )
+
+    if st.button("Monty abre 8 puertas sin premio"):
+        # Monty abre 8 de las 9 puertas que no elegiste y que seguro tienen cabra
         indices_posibles = [
             i for i in range(10)
             if i != st.session_state.eleccion and st.session_state.puertas[i] == 0
         ]
         st.session_state.puertas_abiertas = random.sample(indices_posibles, 8)
-        # Determinar la única puerta cerrada restante (no elegida)
+
+        # La única que queda cerrada
         st.session_state.otra_puerta = [
             i for i in range(10)
             if i != st.session_state.eleccion and i not in st.session_state.puertas_abiertas
         ][0]
-        st.session_state.estado = 'pregunta_prob_condicional'
 
-# ---------- Paso 4: Probabilidad condicional con ecuaciones ----------
+        st.session_state.estado = "prob_8_abiertas"
+
+# ---------- Probabilidad de cada una de las 8 puertas abiertas ----------
+if st.session_state.estado == 'prob_8_abiertas':
+    st.write("""
+    Monty ha abierto 8 puertas de las 9 que no elegiste y todas tienen cabra.
+    Ahora condiciona de nuevo:
+
+    *"Sabiendo que el premio estaba entre las 9 puertas que no elegiste,  
+    ¿cuál es ahora la probabilidad de cada UNA de las 8 puertas abiertas?"*
+    """)
+
+    dibujar_puertas(
+        10,
+        abiertas=st.session_state.puertas_abiertas,
+        eleccion=st.session_state.eleccion,
+        otra_puerta=st.session_state.otra_puerta
+    )
+
+    st.number_input(
+        "Probabilidad de CADA una de las 8 puertas abiertas:",
+        min_value=0.0, max_value=1.0, step=0.01, key="prob_8"
+    )
+
+    if st.button("Continuar a probabilidad condicional de las 2 puertas cerradas"):
+        st.session_state.estado = "pregunta_prob_condicional"
+
+# ---------- Probabilidad condicional entre las 2 puertas cerradas ----------
 if st.session_state.estado == 'pregunta_prob_condicional':
-    st.write("Monty abre 8 puertas con cabras (marcadas como abiertas):")
+    st.write("""
+    Solo quedan 2 puertas cerradas:
+    - ⭐ tu puerta  
+    - 👉 la única puerta no abierta entre las 9 restantes
+
+    Si sabes que *el premio está entre estas 2*, reparte la probabilidad.
+    """)
+
     dibujar_puertas(
-        n=10,
+        10,
         abiertas=st.session_state.puertas_abiertas,
         eleccion=st.session_state.eleccion,
         otra_puerta=st.session_state.otra_puerta
     )
 
-    st.write(f"Se abren las puertas { [i+1 for i in st.session_state.puertas_abiertas] } y todas tienen cabras.")
-    st.write("Ahora solo quedan 2 puertas cerradas: tu elección inicial (⭐) y la otra puerta (👉).")
-
-    prob_condicional = st.number_input(
-        "Imagina que sabes que el premio está en una de las 2 puertas cerradas. "
-        "¿Qué probabilidad le asignas a cada una?",
-        min_value=0.0, max_value=1.0, step=0.01, key='prob_cond'
+    st.number_input(
+        "¿Probabilidad de tu puerta (de las 2)?",
+        min_value=0.0, max_value=1.0, step=0.01, key="prob_cond_2"
     )
 
-    if st.button("Revelar resultado y explicación matemática"):
-        st.write("✅ Explicación con probabilidad condicional (versión 10 puertas):")
+    if st.button("Ver explicación matemática"):
+        st.session_state.estado = "resultado_exp"
 
-        st.latex(r"P(\text{premio en tu puerta al inicio}) = \frac{1}{10}")
-        st.latex(r"P(\text{premio en alguna de las otras 9}) = \frac{9}{10}")
+# ---------- Explicación completa ----------
+if st.session_state.estado == 'resultado_exp':
+    st.write("### 📘 Explicación matemática final")
+    st.write("Las probabilidades reales son:")
+    st.latex(r"P(\text{tu puerta}) = \frac{1}{10}")
+    st.latex(r"P(\text{otra puerta}) = \frac{9}{10}")
 
-        st.write("""
-        Monty abre 8 puertas de las otras 9, todas con cabras, y deja solo **1 puerta cerrada** que no elegiste.  
-        Esto no cambia la probabilidad inicial de tu puerta, pero concentra toda la probabilidad de las 9 puertas
-        en esa única puerta que Monty dejó cerrada.
-        """)
+    st.write("Puedes decidir si quieres cambiar:")
+    st.session_state.estado = 'decision'
 
-        st.latex(r"""
-        P(\text{premio en tu puerta} \mid \text{información de Monty}) = \frac{1}{10}
-        """)
-        st.latex(r"""
-        P(\text{premio en la otra puerta} \mid \text{información de Monty}) = \frac{9}{10}
-        """)
-
-        st.write("Si condicionamos solo a que el premio esté en una de las 2 puertas cerradas, entonces:")
-        st.latex(r"""
-        P(\text{tu puerta} \mid \text{premio en una de las 2}) 
-        = \frac{\tfrac{1}{10}}{\tfrac{1}{10} + \tfrac{9}{10}} = \frac{1}{10}
-        """)
-        st.latex(r"""
-        P(\text{otra puerta} \mid \text{premio en una de las 2}) 
-        = \frac{\tfrac{9}{10}}{\tfrac{1}{10} + \tfrac{9}{10}} = \frac{9}{10}
-        """)
-
-        st.write("En otras palabras: cambiar de puerta multiplica por 9 tus probabilidades de ganar.")
-        st.session_state.estado = 'resultado'
-
-# ---------- Paso 5: Mostrar resultado y opción de cambiar ----------
-if st.session_state.estado == 'resultado':
-    st.write("Puertas justo antes de tu decisión final:")
-    dibujar_puertas(
-        n=10,
-        abiertas=st.session_state.puertas_abiertas,
-        eleccion=st.session_state.eleccion,
-        otra_puerta=st.session_state.otra_puerta
-    )
-
+# ---------- Decisión final ----------
+if st.session_state.estado == 'decision':
     cambiar = st.radio(
-        f"Tu puerta actual es {st.session_state.eleccion+1} (⭐). "
-        f"La otra puerta cerrada es {st.session_state.otra_puerta+1} (👉). ¿Deseas cambiar?",
-        ('No', 'Sí')
+        f"¿Quieres cambiar a la puerta {st.session_state.otra_puerta+1}?",
+        ("No", "Sí")
     )
+
     if st.button("Mostrar resultado final"):
-        if cambiar == 'Sí':
+        if cambiar == "Sí":
             st.session_state.eleccion = st.session_state.otra_puerta
 
-        st.write("Estado final de todas las puertas (se revela el contenido):")
         dibujar_puertas(
-            n=10,
-            abiertas=list(range(10)),   # todas abiertas visualmente
-            eleccion=st.session_state.eleccion,
-            otra_puerta=None,
+            10,
+            abiertas=list(range(10)),
             revelar=True,
+            eleccion=st.session_state.eleccion,
             puertas_real=st.session_state.puertas
         )
 
         if st.session_state.puertas[st.session_state.eleccion] == 1:
-            st.success(f"🎉 ¡Felicidades! Has ganado el premio en la puerta {st.session_state.eleccion+1}.")
+            st.success("🎉 ¡Ganaste el premio!")
         else:
-            st.error(f"🐐 Lo siento, hay una cabra detrás de la puerta {st.session_state.eleccion+1}.")
-        st.session_state.estado = 'reinicio'
+            st.error("🐐 ¡Cabrón! (solo era una cabra...)")
 
-# ---------- Paso 6: Reinicio ----------
-if st.session_state.estado == 'reinicio':
-    if st.button("Volver a jugar"):
-        st.session_state.estado = 'inicio'
-        st.session_state.puertas = []
-        st.session_state.eleccion = None
-        st.session_state.puertas_abiertas = []
-        st.session_state.otra_puerta = None
+        st.session_state.estado = "reinicio"
+
+# ---------- Reinicio ----------
+if st.session_state.estado == "reinicio":
+    if st.button("Jugar de nuevo"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
